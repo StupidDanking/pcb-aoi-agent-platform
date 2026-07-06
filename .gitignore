@@ -216,3 +216,34 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+
+# Node / Vue / Vite
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+
+# VS Code
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Docker / local data
+docker-data/
+postgres_data/
+minio_data/
+ollama_data/
+
+# Large local files
+models/*.pt
+models/*.onnx
+datasets/*
+!datasets/.gitkeep
+!models/.gitkeep
