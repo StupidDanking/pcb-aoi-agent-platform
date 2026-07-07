@@ -14,3 +14,14 @@ rsod-agent-platform/
 ├── docker-compose.yml    # Docker Compose 基础设施编排
 ├── .env.example          # 环境变量示例
 └── README.md             # 项目说明
+
+后端启动方式：
+
+```bash
+cd backend
+python main.py
+
+访问地址：
+
+FastAPI Swagger：http://localhost:8000/docs
+健康检查：http://localhost:8000/api/health

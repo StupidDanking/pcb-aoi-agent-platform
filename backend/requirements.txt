@@ -11,7 +11,10 @@ redis
 minio
 
 python-jose[cryptography]
+
 passlib[bcrypt]
+httpxcd bcrypt==4.0.1
+
 python-multipart
 
 ultralytics
@@ -23,4 +26,4 @@ langgraph
 openai
 
 pytest
-httpxcd 
+
