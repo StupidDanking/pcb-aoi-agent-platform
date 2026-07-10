@@ -3,7 +3,7 @@
 
 class Settings(BaseSettings):
     # 应用基础配置
-    APP_NAME: str = "PCB Defect Agent Platform"
+    APP_NAME: str = "PCB AOI Agent Platform"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
 
@@ -17,9 +17,9 @@ class Settings(BaseSettings):
     # 暂时保留 rsod_agent，避免重建 Docker volume 和 Alembic 迁移。
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
-    DB_NAME: str = "rsod_agent"
-    DB_USER: str = "rsod_admin"
-    DB_PASSWORD: str = "rsod_password"
+    DB_NAME: str = "pcb_aoi_agent"
+    DB_USER: str = "pcb_aoi_admin"
+    DB_PASSWORD: str = "pcb_aoi_password"
 
     @property
     def DATABASE_URL(self) -> str:
@@ -42,9 +42,15 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET: str = "pcb-aoi-images"
     MINIO_SECURE: bool = False
-
+    
+     # YOLOv11 训练配置
+    TRAIN_OUTPUT_DIR: str = "runs/train"
+    DATASET_BASE_DIR: str = "../datasets/pcb_defect"
+    DEFAULT_YOLO_MODEL: str = "yolo11n.pt"
+    DEFAULT_TRAIN_DEVICE: str = "0"
+    
     # JWT 配置
-    JWT_SECRET_KEY: str = "pcb-defect-dev-secret-key-2026"
+    JWT_SECRET_KEY: str = "pcb-aoi-dev-secret-key-2026"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 

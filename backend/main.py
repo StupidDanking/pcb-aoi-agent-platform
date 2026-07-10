@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.training import router as training_router
+
 from app.config.settings import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.middleware import RequestLoggingMiddleware
@@ -48,7 +50,7 @@ app.add_middleware(
 # 注册路由
 app.include_router(auth_router, prefix="/api/auth")
 app.include_router(health_router)
-
+app.include_router(training_router)
 
 @app.get("/", summary="根路径")
 def root():
@@ -70,5 +72,5 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=False,
     )
