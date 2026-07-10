@@ -35,3 +35,35 @@ export function stopTraining(taskId) {
     method: 'post',
   })
 }
+
+export function validateModel(taskId, data) {
+  return request({
+    url: `/api/training/validate/${taskId}`,
+    method: 'post',
+    data,
+  })
+}
+
+export function exportModel(taskId, data) {
+  return request({
+    url: `/api/training/export/${taskId}`,
+    method: 'post',
+    data,
+  })
+}
+
+export function predictImage(formData) {
+  return request({
+    url: '/api/training/predict',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+export function getDownloadModelUrl(taskId) {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+  return `${baseUrl}/api/training/download/${taskId}`
+}

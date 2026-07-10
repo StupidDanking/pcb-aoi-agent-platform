@@ -9,6 +9,8 @@ YOLOv11 训练服务封装
 """
 
 import csv
+import json
+import shutil
 import threading
 import uuid
 from datetime import datetime
@@ -237,6 +239,237 @@ class TrainingService:
         return {
             "best": str(best_path) if best_path.exists() else None,
             "last": str(last_path) if last_path.exists() else None,
+        }
+
+
+    def get_model_path(self, task_id: str, weight_type: str = "best") -> Path | None:
+        """
+        获取某个训练任务的模型权重路径。
+
+        weight_type:
+        - best: 最优模型 best.pt
+        - last: 最后一轮模型 last.pt
+        """
+
+        task = self.tasks.get(task_id)
+
+        if task:
+            output_dir = Path(task["output_dir"])
+        else:
+            output_dir = BACKEND_ROOT / settings.TRAIN_OUTPUT_DIR / task_id
+
+        weights_dir = output_dir / "weights"
+
+        if weight_type == "last":
+            model_path = weights_dir / "last.pt"
+        else:
+            model_path = weights_dir / "best.pt"
+
+        if model_path.exists():
+            return model_path
+
+        return None
+
+    def validate_model(
+        self,
+        task_id: str,
+        split: str = "val",
+        conf: float = 0.001,
+        iou: float = 0.6,
+        imgsz: int = 640,
+        device: str = "0",
+    ) -> dict[str, Any]:
+        """
+        对训练完成的模型进行评估。
+
+        功能：
+        1. 加载 task_xxxxxxxx/weights/best.pt
+        2. 在 val 或 test 集上执行 model.val()
+        3. 生成混淆矩阵、PR 曲线、F1 曲线
+        4. 保存 eval_report.json
+        """
+
+        model_path = self.get_model_path(task_id, weight_type="best")
+
+        if not model_path:
+            return {
+                "error": f"未找到模型权重：{task_id}/weights/best.pt"
+            }
+
+        data_yaml_path = self._resolve_data_yaml(None)
+
+        output_dir = model_path.parents[1]
+        eval_dir = output_dir / "eval"
+        eval_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            model = YOLO(str(model_path))
+
+            results = model.val(
+                data=str(data_yaml_path),
+                split=split,
+                imgsz=imgsz,
+                device=device,
+                conf=conf,
+                iou=iou,
+                plots=True,
+                save_json=True,
+                project=str(eval_dir),
+                name=split,
+                exist_ok=True,
+                verbose=True,
+            )
+
+            overall = {
+                "precision": float(results.box.mp),
+                "recall": float(results.box.mr),
+                "map50": float(results.box.map50),
+                "map50_95": float(results.box.map),
+            }
+
+            per_class = {}
+
+            class_names = {
+                int(class_id): class_name
+                for class_id, class_name in model.names.items()
+            }
+
+            try:
+                for class_id, class_name in class_names.items():
+                    ap50 = (
+                        float(results.box.ap50[class_id])
+                        if class_id < len(results.box.ap50)
+                        else 0.0
+                    )
+                    ap50_95 = (
+                        float(results.box.ap[class_id])
+                        if class_id < len(results.box.ap)
+                        else 0.0
+                    )
+
+                    per_class[class_name] = {
+                        "class_id": class_id,
+                        "ap50": round(ap50, 4),
+                        "ap50_95": round(ap50_95, 4),
+                    }
+            except Exception as exc:
+                per_class["parse_error"] = str(exc)
+
+            report = {
+                "task_id": task_id,
+                "weights": str(model_path),
+                "data_yaml": str(data_yaml_path),
+                "split": split,
+                "overall": overall,
+                "per_class": per_class,
+                "generated_files": {
+                    "eval_dir": str(eval_dir / split),
+                    "eval_report": str(eval_dir / "eval_report.json"),
+                    "confusion_matrix": str(eval_dir / split / "confusion_matrix.png"),
+                    "confusion_matrix_normalized": str(eval_dir / split / "confusion_matrix_normalized.png"),
+                    "box_pr_curve": str(eval_dir / split / "BoxPR_curve.png"),
+                    "box_f1_curve": str(eval_dir / split / "BoxF1_curve.png"),
+                    "box_p_curve": str(eval_dir / split / "BoxP_curve.png"),
+                    "box_r_curve": str(eval_dir / split / "BoxR_curve.png"),
+                    "predictions_json": str(eval_dir / split / "predictions.json"),
+                },
+                "evaluated_at": datetime.now().isoformat(timespec="seconds"),
+            }
+
+            report_path = eval_dir / "eval_report.json"
+
+            with open(report_path, "w", encoding="utf-8") as f:
+                json.dump(report, f, ensure_ascii=False, indent=2)
+
+            if task_id in self.tasks:
+                self._update_task(
+                    task_id,
+                    eval_report=str(report_path),
+                    eval_overall=overall,
+                )
+
+            return report
+
+        except Exception as exc:
+            return {
+                "error": f"模型评估失败：{exc}"
+            }
+
+    def export_model(
+        self,
+        task_id: str,
+        version: str = "v1.0.0",
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        导出训练完成的模型为正式版本。
+
+        导出内容：
+        1. best.pt
+        2. eval_report.json
+        3. confusion_matrix.png
+        4. confusion_matrix_normalized.png
+        5. BoxPR_curve.png
+        6. BoxF1_curve.png
+        """
+
+        model_path = self.get_model_path(task_id, weight_type="best")
+
+        if not model_path:
+            return {
+                "error": f"未找到模型权重：{task_id}/weights/best.pt"
+            }
+
+        output_dir = model_path.parents[1]
+        eval_dir = output_dir / "eval"
+
+        export_dir = BACKEND_ROOT / "models" / f"pcb_aoi_{version}"
+        export_dir.mkdir(parents=True, exist_ok=True)
+
+        exported_model_path = export_dir / "best.pt"
+        shutil.copy2(model_path, exported_model_path)
+
+        eval_report_path = eval_dir / "eval_report.json"
+        if eval_report_path.exists():
+            shutil.copy2(eval_report_path, export_dir / "eval_report.json")
+
+        plot_names = [
+            "confusion_matrix.png",
+            "confusion_matrix_normalized.png",
+            "BoxPR_curve.png",
+            "BoxF1_curve.png",
+            "BoxP_curve.png",
+            "BoxR_curve.png",
+        ]
+
+        # 默认使用 val 评估目录
+        eval_val_dir = eval_dir / "val"
+
+        for plot_name in plot_names:
+            src = eval_val_dir / plot_name
+            if src.exists():
+                shutil.copy2(src, export_dir / plot_name)
+
+        meta = {
+            "task_id": task_id,
+            "version": version,
+            "description": description or "PCB AOI YOLOv11 模型导出版本",
+            "model_path": str(exported_model_path),
+            "export_dir": str(export_dir),
+            "source_model": str(model_path),
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+        }
+
+        with open(export_dir / "model_meta.json", "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+
+        return {
+            "task_id": task_id,
+            "version": version,
+            "model_path": str(exported_model_path),
+            "export_dir": str(export_dir),
+            "file_size": exported_model_path.stat().st_size,
+            "message": f"模型已导出为版本 {version}",
         }
 
     def _resolve_data_yaml(self, data_yaml: str | None) -> Path:
