@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
-    MINIO_BUCKET: str = "pcb-defect-images"
+    MINIO_BUCKET: str = "pcb-aoi-images"
     MINIO_SECURE: bool = False
 
     # JWT 配置

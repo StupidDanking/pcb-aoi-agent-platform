@@ -4,9 +4,9 @@
     container_name: rsod_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: rsod_agent
-      POSTGRES_USER: rsod_admin
-      POSTGRES_PASSWORD: rsod_password
+      POSTGRES_DB: pcb_aoi_agent
+      POSTGRES_USER: pcb_aoi_admin
+      POSTGRES_PASSWORD: pcb_aoi_password
     ports:
       - "5432:5432"
     volumes:
