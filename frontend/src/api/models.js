@@ -26,5 +26,5 @@ export function setActiveModel(version) {
 }
 
 export function getModelArtifactUrl(version, filename) {
-  return `${API_BASE_URL}/api/models/${version}/artifact/${filename}`
+  return `${API_BASE_URL}/api/models/${version}/artifact/${filename}?v=${version}&t=${Date.now()}`
 }

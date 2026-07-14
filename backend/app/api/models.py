@@ -244,15 +244,23 @@ def get_model_artifact(version: str, filename: str):
         "BoxR_curve.png",
         "results.csv",
         "args.yaml",
+        "model_meta.json",
     }
 
     if filename not in allowed_files:
-        raise HTTPException(status_code=400, detail="不允许访问该文件")
+        raise HTTPException(status_code=400, detail="Artifact file is not allowed")
 
-    model_dir = get_model_dir(version)
+    model_dir = MODELS_DIR / version
     file_path = model_dir / filename
 
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="文件不存在")
+        raise HTTPException(status_code=404, detail="Artifact not found")
 
-    return FileResponse(str(file_path))
+    return FileResponse(
+        file_path,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )

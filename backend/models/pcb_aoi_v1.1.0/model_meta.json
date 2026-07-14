@@ -1,9 +1,19 @@
-{
-  "task_id": "task_2c8f71d3",
+﻿{
   "version": "v1.1.0",
-  "description": "PCB AOI YOLOv11n baseline model",
-  "model_path": "D:\\shixi\\rsod-agent-platform\\backend\\models\\pcb_aoi_v1.1.0\\best.pt",
-  "export_dir": "D:\\shixi\\rsod-agent-platform\\backend\\models\\pcb_aoi_v1.1.0",
-  "source_model": "D:\\shixi\\rsod-agent-platform\\backend\\runs\\train\\task_2c8f71d3\\weights\\best.pt",
-  "exported_at": "2026-07-14T10:53:36"
+  "name": "pcb_aoi_v1.1.0",
+  "display_name": "PCB AOI YOLOv11n v1.1.0",
+  "description": "AutoDL 50 epoch high-performance PCB defect detection model",
+  "model_type": "YOLOv11n",
+  "dataset": "pcb_defect",
+  "epochs": 50,
+  "image_size": 640,
+  "batch_size": 16,
+  "device": "AutoDL RTX 4090D",
+  "precision": 0.9793,
+  "recall": 0.9778,
+  "map50": 0.9873,
+  "map50_95": 0.5693,
+  "is_default": false,
+  "created_from": "server_smoke_test-10",
+  "model_file": "best.pt"
 }
