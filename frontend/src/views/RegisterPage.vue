@@ -2,9 +2,9 @@
   <div class="auth-page">
     <div class="auth-card">
       <div class="auth-header">
-        <div class="logo-icon">🎯</div>
+        <div class="logo-icon">🔬</div>
         <h1>创建账号</h1>
-        <p>注册 RSOD Agent Platform 账号</p>
+        <p>注册 PCB 缺陷检测智能体平台账号</p>
       </div>
 
       <el-form

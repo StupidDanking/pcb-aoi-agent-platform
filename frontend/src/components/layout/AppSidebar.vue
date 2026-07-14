@@ -42,12 +42,12 @@ const menuItems = [
   },
   {
     path: '/chat',
-    title: '智能对话',
+    title: '智能问答',
     icon: ChatDotRound,
   },
   {
     path: '/detection',
-    title: '目标检测',
+    title: 'PCB 缺陷检测',
     icon: Aim,
   },
   {
@@ -57,7 +57,7 @@ const menuItems = [
   },
   {
     path: '/history',
-    title: '历史记录',
+    title: '检测历史',
     icon: Clock,
   },
 ]

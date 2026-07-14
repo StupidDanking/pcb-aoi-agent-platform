@@ -1,8 +1,0 @@
-﻿<template>
-  <div class="page-container">
-    <div class="card-container">
-      <h2>数据看板</h2>
-      <p>DashboardPage，占位页面。</p>
-    </div>
-  </div>
-</template>

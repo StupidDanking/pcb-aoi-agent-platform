@@ -2,8 +2,8 @@
   <header class="app-header">
     <div class="header-left">
       <div class="logo">
-        <span class="logo-icon">🎯</span>
-        <span class="logo-text">RSOD Agent Platform</span>
+        <span class="logo-icon">🔬</span>
+        <span class="logo-text">{{ appTitle }}</span>
       </div>
     </div>
 
@@ -44,6 +44,8 @@ import { useUserStore } from '@/stores/user'
 const router = useRouter()
 const userStore = useUserStore()
 
+const appTitle = import.meta.env.VITE_APP_TITLE || 'PCB Defect Agent Platform'
+
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm(
@@ -60,7 +62,7 @@ const handleLogout = async () => {
     ElMessage.success('已退出登录')
     router.push('/login')
   } catch {
-    // 用户点击取消，不做处理
+    // 用户取消退出
   }
 }
 </script>

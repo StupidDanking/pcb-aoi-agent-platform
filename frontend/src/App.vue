@@ -3,15 +3,25 @@
 </template>
 
 <script setup>
-// App.vue 只作为路由出口
-// 实际页面由 Vue Router 控制
 </script>
 
 <style>
 html,
 body,
 #app {
-  width: 100%;
-  height: 100%;
+  margin: 0;
+  min-height: 100vh;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
 }
 </style>

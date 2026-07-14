@@ -1,0 +1,9 @@
+{
+  "task_id": "task_2c8f71d3",
+  "version": "v1.1.0",
+  "description": "PCB AOI YOLOv11n baseline model",
+  "model_path": "D:\\shixi\\rsod-agent-platform\\backend\\models\\pcb_aoi_v1.1.0\\best.pt",
+  "export_dir": "D:\\shixi\\rsod-agent-platform\\backend\\models\\pcb_aoi_v1.1.0",
+  "source_model": "D:\\shixi\\rsod-agent-platform\\backend\\runs\\train\\task_2c8f71d3\\weights\\best.pt",
+  "exported_at": "2026-07-14T10:53:36"
+}

@@ -256,3 +256,24 @@ logs/
 backend/test.db
 backend/.pytest_cache/
 .pytest_cache/
+
+# local secrets
+.env
+backend/.env
+frontend/.env
+
+# runtime outputs
+backend/runs/
+runs/
+tmp_autodl_result/
+server_smoke_test-*.zip
+
+# local active model state
+backend/models/active_model.json
+
+# pretrained/downloaded weights
+backend/yolo*.pt
+backend/models/**/last.pt
+
+# backup files
+*.bak
