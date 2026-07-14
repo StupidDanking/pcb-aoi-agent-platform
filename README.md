@@ -1,583 +1,338 @@
-# pcb-defect-agent-platform
+# PCB AOI Agent Platform
 
-基于 YOLOv11 的 PCB 缺陷检测智能体平台。
+## 项目简介
 
-本项目面向工业质检场景，构建一个基于 YOLOv11 的 PCB 缺陷检测智能体平台。系统支持用户注册登录、PCB 图像上传、缺陷自动检测、检测结果可视化、历史记录管理和智能分析问答。后端基于 FastAPI 构建，使用 PostgreSQL 存储用户、任务和检测结果，使用 MinIO 存储原图与结果图，前端基于 Vue3 和 Element Plus 实现交互界面。
+PCB AOI Agent Platform 是一个面向印制电路板（PCB）表面缺陷检测场景的智能检测与质量评估平台。系统以 YOLOv11 为核心检测模型，结合 FastAPI 后端、Vue3 前端、PostgreSQL 数据库、MinIO 对象存储以及大模型智能问答能力，实现 PCB 缺陷图像检测、批量检测、视频检测、训练评估、模型版本管理和检测结果智能分析。
 
-本项目选择题目：
+本项目面向工业质检场景，支持对 PCB 表面常见缺陷进行自动识别、可视化标注、历史追踪和辅助分析，可用于课程设计、实习项目展示、算法验证以及后续工程化扩展。
 
-```text
-P12：PCB 缺陷检测系统
-```
+## 核心功能
 
----
+### 1. PCB 缺陷智能检测
 
-## 技术栈
+系统支持以下 PCB 表面缺陷类别：
 
-- 后端：FastAPI + SQLAlchemy + Alembic + JWT
-- 前端：Vue 3 + Vite + Element Plus + Pinia + Vue Router
-- 数据库：PostgreSQL
-- 缓存：Redis
-- 文件存储：MinIO
-- 模型方向：YOLOv11 PCB 缺陷检测
-- 数据集格式：YOLO TXT
-- 测试：pytest + Vitest
-- 部署基础：Docker Compose
+| 类别编号 | 英文名称 | 中文含义 |
+| --- | --- | --- |
+| 0 | mouse_bite | 鼠咬 |
+| 1 | spur | 毛刺 |
+| 2 | missing_hole | 缺孔 |
+| 3 | short | 短路 |
+| 4 | open_circuit | 开路 |
+| 5 | spurious_copper | 多余铜 |
 
----
+支持的检测模式包括：
 
-## 项目结构
+- 单张图片检测
+- 多图片批量检测
+- ZIP 压缩包检测
+- PCB 缺陷视频检测
+- 检测结果可视化标注
+- 检测类别统计与置信度展示
 
-```text
-pcb-defect-agent-platform/
-├── backend/              # 后端服务，FastAPI
-│   ├── app/
-│   │   ├── api/          # API 路由
-│   │   ├── config/       # 全局配置
-│   │   ├── core/         # 安全、JWT、日志、异常处理、中间件等核心工具
-│   │   ├── database/     # 数据库连接
-│   │   ├── entity/       # SQLAlchemy 模型与 Pydantic Schema
-│   │   ├── services/     # 业务逻辑
-│   │   └── storage/      # MinIO 文件存储客户端
-│   ├── alembic/          # 数据库迁移脚本
-│   ├── logs/             # 后端日志目录
-│   ├── tests/            # 后端 pytest 测试
-│   ├── main.py           # FastAPI 入口
-│   ├── pytest.ini        # pytest 配置
-│   └── requirements.txt  # Python 依赖
-├── frontend/             # 前端服务，Vue3 + Vite
-│   ├── src/
-│   │   ├── api/          # 前端 API 封装
-│   │   ├── assets/       # 静态资源与全局样式
-│   │   ├── components/   # 公共组件
-│   │   ├── router/       # Vue Router 路由
-│   │   ├── stores/       # Pinia 状态管理
-│   │   ├── utils/        # Axios、Markdown、错误监控等工具
-│   │   └── views/        # 页面组件
-│   ├── tests/            # 前端 Vitest 测试
-│   ├── vite.config.js    # Vite 配置
-│   └── package.json      # 前端依赖
-├── models/               # YOLOv11 PCB 缺陷检测模型文件
-├── datasets/             # PCB 缺陷检测数据集目录
-│   └── pcb_defect/
-│       └── data.yaml     # YOLOv11 数据集配置文件
-├── scripts/              # 工具脚本
-│   └── check_yolo_dataset.py
-├── docs/                 # 项目文档
-│   └── DAY5_DATASET.md
-├── docker-compose.yml    # Docker Compose 基础设施编排
-├── .env.example          # 环境变量示例
-├── .gitignore            # Git 忽略配置
-└── README.md             # 项目说明
-```
+### 2. 智能问答 Agent
 
----
+平台集成 Qwen 大模型能力，支持围绕检测结果进行智能分析，例如：
 
-## PCB 缺陷检测任务说明
+- 缺陷类型解释
+- 检测结果总结
+- PCB 缺陷风险说明
+- 质量评估建议
+- 检测图片或视频的自然语言问答
 
-本项目面向 PCB 工业质检场景，目标是对 PCB 图像中的缺陷进行自动识别和定位。
+智能问答模块支持上传图片、视频和 ZIP 文件，并可自动调用对应检测工具完成分析。
 
-当前数据集包含 6 类 PCB 缺陷：
+### 3. 模型训练与评估
 
-```text
-0 mouse_bite        鼠咬
-1 spur              毛刺
-2 missing_hole      缺孔
-3 short             短路
-4 open_circuit      开路
-5 spurious_copper   多余铜
-```
+平台提供 YOLOv11 模型训练与评估能力，支持：
 
-系统最终目标：
+- 自定义 epoch、batch size、image size
+- GPU 训练
+- 训练任务状态查询
+- 训练指标可视化
+- Precision、Recall、mAP50、mAP50-95 指标展示
+- 训练结果导出
 
-```text
-用户上传 PCB 图像
-↓
-后端保存原图到 MinIO
-↓
-调用 YOLOv11 模型进行缺陷检测
-↓
-返回缺陷类别、置信度和检测框
-↓
-保存检测结果到 PostgreSQL
-↓
-结果图保存到 MinIO
-↓
-前端展示检测框、缺陷统计和智能分析报告
-```
+### 4. 模型版本管理
 
----
+系统支持多模型版本管理，包括：
 
-## 智能体设计
+- 模型版本列表
+- 当前启用模型切换
+- 模型指标展示
+- 训练曲线查看
+- 混淆矩阵查看
+- 不同版本模型对比
 
-项目后续智能体部分由 1 个总控智能体和 3 个专业智能体组成：
+当前项目包含两个模型版本：
+
+| 模型版本 | 说明 |
+| --- | --- |
+| pcb_aoi_v1.0.0 | 本地 1 epoch baseline 模型 |
+| pcb_aoi_v1.1.0 | AutoDL 训练得到的 50 epoch 高性能模型 |
+
+### 5. 历史记录管理
+
+系统支持检测和问答历史记录管理，包括：
+
+- 最近检测记录
+- 最近对话记录
+- 历史搜索
+- 对话恢复
+- 检测结果回看
+- 历史记录删除
+
+### 6. 权限与用户系统
+
+平台包含基础用户认证能力，支持：
+
+- 用户注册
+- 用户登录
+- JWT Token 鉴权
+- 用户角色管理
+- 开发者测试账号初始化
+
+## 技术架构
 
 ```text
-SupervisorAgent   总控调度智能体
-DetectionAgent    PCB 缺陷检测智能体
-AnalysisAgent     检测结果分析智能体
-QAAgent           PCB 缺陷知识问答智能体
-```
-
-### SupervisorAgent
-
-负责理解用户输入，判断用户意图，并将任务分发给合适的专业智能体。
-
-### DetectionAgent
-
-负责调用 YOLOv11 模型，对 PCB 图片进行缺陷检测，输出缺陷类别、检测框坐标和置信度。
-
-### AnalysisAgent
-
-负责对检测结果进行统计和解释，生成自然语言分析报告，例如缺陷数量、主要缺陷类型、风险等级和维修建议。
-
-### QAAgent
-
-负责回答用户关于 PCB 缺陷、检测流程、模型结果含义等问题。
-
----
-
-## Day1 完成内容
-
-Day1 主要完成项目初始化和基础环境验证。
-
-已完成：
-
-- 创建 GitHub 仓库
-- 初始化项目目录结构
-- 创建后端 FastAPI 最小应用
-- 创建前端 Vue3 + Vite 项目
-- 配置基础 Docker Compose 文件
-- 验证后端 `/docs` 和 `/api/health` 可访问
-
-Day1 验证结果：
-
-```text
-FastAPI Swagger：http://localhost:8000/docs
-健康检查：http://localhost:8000/api/health
-```
-
----
-
-## Day2 完成内容
-
-Day2 主要完成后端项目初始化、数据库建模、基础设施和认证模块。
-
-已完成：
-
-- 后端目录分层：
-  - `config`
-  - `database`
-  - `entity`
-  - `storage`
-  - `services`
-  - `core`
-  - `api`
-- 编写全局配置模块 `settings.py`
-- 编写数据库连接模块 `session.py`
-- 定义 SQLAlchemy 数据模型
-- 定义 Pydantic 请求/响应模型
-- 使用 Alembic 生成并执行数据库迁移
-- 启动 PostgreSQL、Redis、MinIO
-- 封装 MinIO 文件存储客户端
-- 实现用户注册接口
-- 实现用户登录接口
-- 实现 JWT Token 生成与校验
-- 实现获取当前用户接口 `/api/auth/me`
-- 在 Swagger 中完成注册、登录、Token 授权和当前用户验证
-
-Day2 核心接口：
-
-```text
-POST /api/auth/register
-POST /api/auth/login
-GET  /api/auth/me
-GET  /api/health
-```
-
-Day2 核心文件：
-
-```text
-backend/app/config/settings.py
-backend/app/database/session.py
-backend/app/entity/db_models.py
-backend/app/entity/schemas.py
-backend/app/storage/minio_client.py
-backend/app/core/security.py
-backend/app/services/user_service.py
-backend/app/api/auth.py
-backend/alembic/
-backend/main.py
-```
-
----
-
-## Day3 完成内容
-
-Day3 主要完成前端项目初始化、页面路由、登录注册页面和前后端联调。
-
-已完成：
-
-- 安装前端核心依赖：
-  - Element Plus
-  - Vue Router
-  - Pinia
-  - Axios
-  - Markdown-it
-  - Sass
-- 配置 Vite：
-  - `@` 路径别名
-  - `/api` 代理到后端 `http://localhost:8000`
-  - SCSS 全局变量
-- 创建全局样式：
-  - `variables.scss`
-  - `reset.scss`
-  - `global.scss`
-- 封装 Axios 请求工具 `request.js`
-- 封装认证 API：
-  - 注册
-  - 登录
-  - 获取当前用户
-  - 退出登录
-- 创建 Pinia 用户状态管理：
-  - 保存 Token
-  - 保存用户名
-  - 获取当前用户信息
-  - 退出登录
-- 配置 Vue Router：
-  - `/login`
-  - `/register`
-  - `/dashboard`
-  - `/chat`
-  - `/detection`
-  - `/training`
-  - `/history`
-- 实现路由守卫：
-  - 未登录访问主页面会跳转到 `/login`
-  - 已登录访问 `/login` 会跳转到 `/dashboard`
-- 实现主布局组件：
-  - `AppHeader`
-  - `AppSidebar`
-  - `MainLayout`
-- 实现登录页面
-- 实现注册页面
-- 完成前后端联调：
-  - 前端注册用户
-  - 前端登录获取 Token
-  - 登录后进入主页面
-  - 侧边栏页面切换
-  - 退出登录返回登录页
-
-Day3 核心前端页面：
-
-```text
-/login
-/register
-/dashboard
-/chat
-/detection
-/training
-/history
-```
-
-Day3 核心文件：
-
-```text
-frontend/src/api/auth.js
-frontend/src/utils/request.js
-frontend/src/utils/markdown.js
-frontend/src/stores/user.js
-frontend/src/router/index.js
-frontend/src/components/layout/AppHeader.vue
-frontend/src/components/layout/AppSidebar.vue
-frontend/src/components/layout/MainLayout.vue
-frontend/src/views/LoginPage.vue
-frontend/src/views/RegisterPage.vue
-frontend/src/main.js
-frontend/src/App.vue
-frontend/vite.config.js
-```
-
----
-
-## Day4 完成内容
-
-Day4 主要完成日志监控、异常处理、健康检查增强、测试框架和前后端联调验证。
-
-已完成：
-
-- 后端日志系统：
-  - 创建 `app/core/logger.py`
-  - 支持控制台日志输出
-  - 支持文件日志输出 `backend/logs/app.log`
-  - 支持日志文件轮转
-  - 区分 `INFO`、`WARNING`、`ERROR` 等日志级别
-
-- 后端全局异常处理：
-  - 创建 `app/core/exceptions.py`
-  - 统一处理 `HTTPException`
-  - 统一处理请求参数校验错误
-  - 统一处理未知异常
-  - 异常返回统一 JSON 格式
-
-- API 请求日志中间件：
-  - 创建 `app/core/middleware.py`
-  - 自动记录请求方法、路径、状态码、耗时、客户端 IP
-  - 响应头增加 `X-Process-Time`
-
-- 健康检查接口增强：
-  - 创建 `app/api/health.py`
-  - 实现基础健康检查 `/api/health`
-  - 实现详细健康检查 `/api/health/detail`
-  - 分别检查 PostgreSQL、Redis、MinIO 状态
-
-- 前端错误监控：
-  - 创建 `src/utils/errorReporter.js`
-  - 捕获 JavaScript 运行时错误
-  - 捕获 Promise 未处理异常
-  - 捕获 Vue 组件错误
-  - 捕获资源加载错误
-  - 将错误记录保存到 `localStorage`
-
-- 后端测试框架：
-  - 搭建 `pytest` 测试框架
-  - 创建 `backend/tests/`
-  - 编写健康检查接口测试
-  - 编写认证接口测试
-  - 支持测试环境 SQLite 数据库
-
-- 前端测试框架：
-  - 安装并配置 Vitest
-  - 创建前端测试目录
-  - 编写错误监控模块测试
-  - 编写 Axios 请求封装测试
-  - 编写布局组件导入测试
-
-- Docker 日志管理：
-  - 掌握 `docker compose logs`
-  - 可分别查看 PostgreSQL、Redis、MinIO 日志
-  - 可使用 `--tail`、`--since`、`-f`、`-t` 查看日志
-
-- 完整联调验证：
-  - Docker 基础设施正常启动
-  - 后端健康检查接口正常
-  - 后端请求日志正常
-  - 前端注册 / 登录 / 进入主界面正常
-  - 前端错误监控正常
-  - 后端 `pytest` 测试通过
-  - 前端 `npm run test:run` 测试通过
-  - 前端 `npm run build` 构建通过
-
-Day4 新增核心接口：
-
-```text
-GET /api/health
-GET /api/health/detail
-```
-
-Day4 新增核心文件：
-
-```text
-backend/app/core/logger.py
-backend/app/core/exceptions.py
-backend/app/core/middleware.py
-backend/app/api/health.py
-backend/tests/conftest.py
-backend/tests/test_health.py
-backend/tests/test_auth.py
-frontend/src/utils/errorReporter.js
-frontend/tests/
-```
-
----
-
-## Day5 完成内容
-
-Day5 主要完成 PCB 缺陷检测数据集获取、YOLO 标注格式理解、数据集目录整理、`data.yaml` 生成和数据集合法性检查。
-
-已完成：
-
-- 确定项目题目为 `P12：PCB 缺陷检测系统`
-- 将项目方向统一为 PCB 工业质检场景
-- 下载 PCB 缺陷检测数据集
-- 确认数据集为 YOLO TXT 标注格式
-- 由于数据集已是 YOLO 格式，当前阶段不需要执行 VOC、COCO、LabelMe 到 YOLO 的格式转换
-- 整理正式数据集目录 `datasets/pcb_defect`
-- 完成 `train / val / test` 数据划分检查
-- 生成 YOLOv11 训练配置文件 `data.yaml`
-- 确定 6 类 PCB 缺陷类别
-- 编写 YOLO 数据集合法性检查脚本
-- 确认图片数量和标签数量一一对应
-
-数据集统计结果：
-
-```text
-train images: 8534
-train labels: 8534
-
-val images: 1066
-val labels: 1066
-
-test images: 1068
-test labels: 1068
-```
-
-总图片数量：
-
-```text
-8534 + 1066 + 1068 = 10668 张
-```
-
-PCB 缺陷类别：
-
-```text
-0 mouse_bite        鼠咬
-1 spur              毛刺
-2 missing_hole      缺孔
-3 short             短路
-4 open_circuit      开路
-5 spurious_copper   多余铜
-```
-
-Day5 新增核心文件：
-
-```text
-datasets/pcb_defect/data.yaml
-scripts/check_yolo_dataset.py
-docs/DAY5_DATASET.md
-```
-
-注意：数据集图片和标签文件体积较大，不提交到 GitHub，只提交 `data.yaml`、数据集说明文档和检查脚本。
-
-后续 Day6 将开始进行 YOLOv11 模型训练。
-
----
-
-## 后端启动方式
-
-### 1. 启动基础设施
-
-在项目根目录执行：
-
-```bash
+PCB AOI Agent Platform
+├── Frontend: Vue3 + Vite + Element Plus
+├── Backend: FastAPI + SQLAlchemy + Alembic
+├── Database: PostgreSQL
+├── Cache: Redis
+├── Object Storage: MinIO
+├── Detection Model: YOLOv11
+├── LLM: Qwen / DashScope OpenAI Compatible API
+└── Deployment: Docker Compose + Local GPU Runtime
+
+技术栈
+前端
+Vue 3
+Vite
+Vue Router
+Pinia
+Element Plus
+Axios
+ECharts
+Markdown-it
+后端
+Python 3.10+
+FastAPI
+SQLAlchemy
+Alembic
+Pydantic
+Uvicorn
+PostgreSQL
+Redis
+MinIO
+Ultralytics YOLO
+OpenAI SDK compatible client
+算法与模型
+YOLOv11n
+PCB defect detection dataset
+Object detection
+Image annotation visualization
+Video frame sampling detection
+Model evaluation metrics
+
+项目结构
+rsod-agent-platform
+├── backend
+│   ├── app
+│   │   ├── agent                 # 智能体工具选择与检测调用
+│   │   ├── api                   # FastAPI 路由接口
+│   │   ├── config                # 系统配置
+│   │   ├── db                    # 数据库连接与 ORM
+│   │   ├── llm                   # Qwen 大模型客户端
+│   │   ├── models                # 数据库模型
+│   │   ├── schemas               # Pydantic 数据结构
+│   │   ├── services              # 检测、训练等核心服务
+│   │   └── training              # 模型训练服务
+│   ├── models                    # 已注册 YOLO 模型版本
+│   │   ├── pcb_aoi_v1.0.0
+│   │   └── pcb_aoi_v1.1.0
+│   ├── scripts                   # 初始化脚本
+│   ├── tools                     # 数据集和评估工具
+│   ├── requirements.txt
+│   └── main.py
+├── frontend
+│   ├── src
+│   │   ├── api                   # 前端 API 封装
+│   │   ├── components            # 通用组件
+│   │   ├── layout                # 页面布局
+│   │   ├── router                # 前端路由
+│   │   ├── stores                # Pinia 状态管理
+│   │   ├── utils                 # 工具函数
+│   │   └── views                 # 页面视图
+│   ├── package.json
+│   └── vite.config.js
+├── datasets
+│   └── pcb_defect                # PCB 缺陷数据集
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+└── README.md
+
+环境要求
+基础环境
+Windows 10 / Windows 11
+Python 3.10 或更高版本
+Node.js 18 或更高版本
+Docker Desktop
+NVIDIA GPU 与 CUDA 环境
+推荐环境
+Python 3.10 / 3.12
+Node.js 20+
+CUDA 12.x
+NVIDIA RTX 4060 Laptop GPU 或更高
+PostgreSQL 15+
+Redis 7+
+MinIO
+
+快速启动
+1. 克隆项目
+git clone <your-repository-url>
+cd rsod-agent-platform
+2. 启动基础服务
 docker compose up -d postgres redis minio
-```
+3. 配置后端环境变量
 
-查看容器状态：
+复制环境变量模板：
 
-```bash
-docker compose ps
-```
+copy .env.example backend\.env
 
-正常应看到：
+然后根据本地情况修改 backend/.env。
 
-```text
-postgres   Up
-redis      Up
-minio      Up
-```
+示例配置：
 
-### 2. 启动后端服务
+APP_NAME=PCB AOI Agent Platform
+APP_VERSION=0.1.0
+DEBUG=True
 
-进入后端目录：
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=pcb_aoi_agent
+DB_USER=pcb_aoi_admin
+DB_PASSWORD=pcb_aoi_password
 
-```bash
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=pcb-aoi-images
+MINIO_SECURE=False
+
+QWEN_API_KEY=your_qwen_api_key_here
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_MODEL=qwen-plus
+
+JWT_SECRET_KEY=pcb-aoi-dev-secret-key
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8080
+
+注意：.env 文件包含 API Key 和数据库密码，不应提交到 Git 仓库。
+
+4. 安装后端依赖
 cd backend
-```
+pip install -r requirements.txt
+5. 初始化数据库
+alembic upgrade head
 
-激活虚拟环境：
+如需初始化测试账号：
 
-```bash
-../.venv/Scripts/activate
-```
+python scripts/init_users_roles.py
 
-启动 FastAPI：
+默认开发者账号：
 
-```bash
+用户名	密码	角色
+limuhang	123456	developer
+wanshaokun	123456	developer
+zhouyuhan	123456	developer
+lixiang	123456	developer
+deming	123456	developer
+
+6. 启动后端
 python main.py
-```
 
-后端访问地址：
+后端默认运行在：
 
-```text
-FastAPI Swagger：http://localhost:8000/docs
-基础健康检查：http://localhost:8000/api/health
-详细健康检查：http://localhost:8000/api/health/detail
-```
+http://localhost:8000
 
----
+API 文档地址：
 
-## 前端启动方式
+http://localhost:8000/docs
+7. 安装前端依赖
 
-进入前端目录：
+新开一个终端：
 
-```bash
 cd frontend
-```
-
-安装依赖：
-
-```bash
 npm install
-```
-
-启动开发服务器：
-
-```bash
+8. 启动前端
 npm run dev
-```
 
-前端访问地址：
+前端默认运行在：
 
-```text
-前端首页：http://localhost:5173
-登录页：http://localhost:5173/login
-注册页：http://localhost:5173/register
-数据看板：http://localhost:5173/dashboard
-PCB 缺陷检测：http://localhost:5173/detection
-智能问答：http://localhost:5173/chat
-模型训练：http://localhost:5173/training
-检测历史：http://localhost:5173/history
-```
+http://localhost:5173
+模型文件说明
 
----
+模型版本位于：
 
-## 数据集说明
+backend/models/
 
-正式数据集路径：
+当前项目支持以下模型目录：
 
-```text
+backend/models/pcb_aoi_v1.0.0
+backend/models/pcb_aoi_v1.1.0
+
+每个模型目录建议包含：
+
+best.pt
+model_meta.json
+results.csv
+results.png
+confusion_matrix.png
+confusion_matrix_normalized.png
+BoxPR_curve.png
+BoxF1_curve.png
+BoxP_curve.png
+BoxR_curve.png
+args.yaml
+
+模型切换通过后端接口维护：
+
+GET  /api/models
+GET  /api/models/active
+POST /api/models/active
+
+当前启用模型状态保存在：
+
+backend/models/active_model.json
+
+该文件属于本地运行状态文件，不建议提交到 Git。
+
+数据集说明
+
+PCB 缺陷数据集目录结构如下：
+
 datasets/pcb_defect
-```
+├── train
+│   ├── images
+│   └── labels
+├── val
+│   ├── images
+│   └── labels
+├── test
+│   ├── images
+│   └── labels
+└── data.yaml
 
-正式 `data.yaml` 路径：
+data.yaml 示例：
 
-```text
-datasets/pcb_defect/data.yaml
-```
-
-数据集说明文档：
-
-```text
-docs/DAY5_DATASET.md
-```
-
-数据集检查脚本：
-
-```text
-scripts/check_yolo_dataset.py
-```
-
-运行数据集检查：
-
-```bash
-python scripts/check_yolo_dataset.py
-```
-
-正式 `data.yaml` 内容：
-
-```yaml
-path: D:/实习/rsod-agent-platform/datasets/pcb_defect
+path: D:/shixi/rsod-agent-platform/datasets/pcb_defect
 train: train/images
 val: val/images
 test: test/images
@@ -589,219 +344,108 @@ names:
   3: short
   4: open_circuit
   5: spurious_copper
-```
+主要接口
+认证接口
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/me
+检测接口
+POST /api/detection/single
+POST /api/detection/batch
+POST /api/detection/zip
+POST /api/detection/video
+智能问答接口
+POST /api/chat/stream
+训练接口
+POST /api/training/start
+GET  /api/training/status/{task_id}
+GET  /api/training/metrics/{task_id}
+POST /api/training/stop/{task_id}
+GET  /api/training/results/{task_id}
+POST /api/training/predict
+历史记录接口
+GET    /api/history/recent
+GET    /api/history/search
+POST   /api/history/chat/session
+POST   /api/history/chat/message
+GET    /api/history/chat/session/{session_id}
+POST   /api/history/detection/task
+GET    /api/history/detection/task/{task_id}
+DELETE /api/history/{record_id}
+模型管理接口
+GET  /api/models
+GET  /api/models/active
+POST /api/models/active
+GET  /api/models/{version}
+GET  /api/models/{version}/metrics
+GET  /api/models/{version}/artifact/{filename}
+前端页面
+页面	路由	功能
+智能问答	/chat	上传图片、视频、ZIP 并进行检测分析和大模型问答
+图片检测	/detection	单图检测、模型选择、检测结果展示
+模型训练	/training	启动训练、查看训练状态和指标
+模型管理	/models	查看模型版本、切换当前检测模型
+登录	/login	用户登录
+注册	/register	用户注册
+协作开发说明
+前端开发
 
----
+如果只进行前端页面开发：
 
-## 基础设施访问地址
-
-```text
-PostgreSQL：localhost:5432
-Redis：localhost:6379
-MinIO API：http://localhost:9000
-MinIO Console：http://localhost:9001
-```
-
-MinIO 默认账号密码：
-
-```text
-minioadmin / minioadmin
-```
-
----
-
-## 常用接口
-
-### 认证接口
-
-```text
-POST /api/auth/register    用户注册
-POST /api/auth/login       用户登录
-GET  /api/auth/me          获取当前用户
-```
-
-### 健康检查接口
-
-```text
-GET /api/health            基础健康检查
-GET /api/health/detail     详细健康检查
-```
-
----
-
-## 测试命令
-
-### 后端测试
-
-进入后端目录：
-
-```bash
-cd backend
-```
-
-激活虚拟环境：
-
-```bash
-../.venv/Scripts/activate
-```
-
-运行 pytest：
-
-```bash
-python -m pytest
-```
-
-预期结果：
-
-```text
-tests/test_health.py 通过
-tests/test_auth.py   通过
-```
-
-### 前端测试
-
-进入前端目录：
-
-```bash
 cd frontend
-```
+npm install
+npm run dev
 
-运行 Vitest：
+如果前端需要访问本地后端，请确保后端运行在：
 
-```bash
-npm run test:run
-```
+http://localhost:8000
 
-### 前端构建
+也可以在前端配置接口地址：
 
-```bash
-npm run build
-```
+VITE_API_BASE_URL=http://localhost:8000
+后端开发
+cd backend
+pip install -r requirements.txt
+python main.py
+Git 提交规范
 
-构建成功后会生成：
+建议提交信息采用以下格式：
 
-```text
-frontend/dist/
-```
+feat: add model version management
+fix: resolve detection service cache issue
+refactor: optimize chat page layout
+docs: update enterprise README
+不应提交的文件
 
-注意：`dist/` 是构建产物，不需要提交到 Git。
+以下文件不应提交到 Git：
 
----
-
-## 日志查看
-
-### 后端应用日志
-
-后端日志文件位置：
-
-```text
-backend/logs/app.log
-```
-
-查看最近日志：
-
-```powershell
-Get-Content logs/app.log -Encoding UTF8 -Tail 30
-```
-
-实时查看日志：
-
-```powershell
-Get-Content logs/app.log -Encoding UTF8 -Wait
-```
-
-### Docker 容器日志
-
-查看所有服务日志：
-
-```bash
-docker compose logs --tail=50
-```
-
-查看 PostgreSQL 日志：
-
-```bash
-docker compose logs --tail=50 postgres
-```
-
-查看 Redis 日志：
-
-```bash
-docker compose logs --tail=50 redis
-```
-
-查看 MinIO 日志：
-
-```bash
-docker compose logs --tail=50 minio
-```
-
-实时查看日志：
-
-```bash
-docker compose logs -f
-```
-
----
-
-## Git 提交说明
-
-不提交：
-
-```text
-.venv/
-node_modules/
-frontend/dist/
-backend/logs/
+.env
 backend/.env
 frontend/.env
-datasets/raw/
-datasets/pcb_defect/train/
-datasets/pcb_defect/val/
-datasets/pcb_defect/test/
-```
+backend/runs/
+runs/
+tmp_autodl_result/
+server_smoke_test-*.zip
+backend/models/active_model.json
+backend/models/**/last.pt
+backend/yolo*.pt
+*.bak
 
-可以提交：
+如果后续模型权重大于 GitHub 单文件限制，建议使用 Git LFS 或 GitHub Release 管理模型文件。
 
-```text
-README.md
-docs/
-scripts/
-backend/
-frontend/
-.env.example
-docker-compose.yml
-datasets/pcb_defect/data.yaml
-```
-
----
-
-## 当前项目状态
-
-截至 Day5，项目已经完成：
-
-```text
-后端基础架构
-数据库表结构
-数据库迁移
-MinIO 存储客户端
-JWT 用户认证
-统一日志系统
-全局异常处理
-API 请求日志中间件
-健康检查接口增强
-后端 pytest 测试框架
-Vue3 前端基础架构
-登录 / 注册页面
-前后端认证联调
-主界面布局和侧边栏导航
-前端错误监控
-前端 Vitest 测试框架
-前端构建验证
-PCB 缺陷检测数据集准备
-YOLO 数据集目录整理
-YOLOv11 data.yaml 配置
-数据集合法性检查脚本
-```
-
-后续 Day6 将继续进行 YOLOv11 模型训练、训练结果保存和模型推理验证。
+项目特点
+面向 PCB AOI 工业质检场景
+支持图片、批量、ZIP 和视频检测
+支持 YOLOv11 模型训练、评估和版本管理
+集成 Qwen 大模型进行智能分析
+前后端分离架构，便于协作开发
+支持历史记录、检测回看和对话恢复
+具备进一步扩展为工业质检平台的基础
+后续扩展方向
+增加检测任务队列和异步调度
+支持更多模型结构和模型导出格式
+接入真实 AOI 设备图像流
+增加企业用户、权限和审计日志
+增加缺陷严重等级评估
+增加报表导出功能
+增加模型自动评估与自动部署流程
