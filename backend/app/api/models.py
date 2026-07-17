@@ -2,11 +2,17 @@ import csv
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/models", tags=["模型版本"])
+from app.api.deps import require_login
+
+router = APIRouter(
+    prefix="/api/models",
+    tags=["模型版本"],
+    dependencies=[Depends(require_login)],
+)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 MODELS_DIR = BACKEND_ROOT / "models"

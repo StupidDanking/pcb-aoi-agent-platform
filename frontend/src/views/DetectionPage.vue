@@ -4,8 +4,8 @@
       <section class="upload-card">
         <div class="card-header">
           <div>
-            <h2>PCB 图片检测</h2>
-            <p>上传 PCB 图片，选择模型版本并进行缺陷检测。</p>
+            <h2>PCB 缺陷检测</h2>
+            <p>支持单图、批量图片、ZIP 压缩包和视频检测。</p>
           </div>
 
           <div class="model-select-wrap">
@@ -33,26 +33,52 @@
           <strong>{{ activeModelInfo.model_name }}</strong>
         </div>
 
+        <div class="mode-tabs">
+          <button
+            v-for="item in modeOptions"
+            :key="item.value"
+            type="button"
+            class="mode-tab"
+            :class="{ active: detectMode === item.value }"
+            :disabled="detecting"
+            @click="switchMode(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+
         <label class="upload-box">
           <input
             type="file"
-            accept="image/*"
+            :accept="acceptTypes"
+            :multiple="detectMode === 'batch'"
             @change="handleFileChange"
           />
 
-          <template v-if="previewUrl">
+          <template v-if="detectMode === 'single' && previewUrl">
             <img :src="previewUrl" alt="preview" />
+          </template>
+
+          <template v-else-if="selectedFiles.length > 0">
+            <div class="upload-icon">▤</div>
+            <h3>{{ uploadTitle }}</h3>
+            <p>已选择 {{ selectedFiles.length }} 个文件</p>
           </template>
 
           <template v-else>
             <div class="upload-icon">▧</div>
-            <h3>选择一张 PCB 图片</h3>
-            <p>支持 jpg、png、jpeg 等常见格式。</p>
+            <h3>{{ emptyTitle }}</h3>
+            <p>{{ emptyHint }}</p>
           </template>
         </label>
 
-        <div v-if="selectedFile" class="file-info">
-          当前文件：{{ selectedFile.name }}
+        <div v-if="selectedFiles.length > 0" class="file-info">
+          <div
+            v-for="file in selectedFiles"
+            :key="file.name + file.size"
+          >
+            {{ file.name }}
+          </div>
         </div>
 
         <div class="control-row">
@@ -78,9 +104,33 @@
             />
           </label>
 
+          <template v-if="detectMode === 'video'">
+            <label>
+              采样间隔：
+              <input
+                v-model.number="frameSampleRate"
+                type="number"
+                min="1"
+                max="60"
+                step="1"
+              />
+            </label>
+
+            <label>
+              最大帧数：
+              <input
+                v-model.number="maxFrames"
+                type="number"
+                min="1"
+                max="200"
+                step="1"
+              />
+            </label>
+          </template>
+
           <button
             class="detect-btn"
-            :disabled="!selectedFile || detecting"
+            :disabled="!canDetect || detecting"
             @click="handleDetect"
           >
             {{ detecting ? '检测中...' : '开始检测' }}
@@ -97,7 +147,18 @@
             </p>
           </div>
 
-          
+          <div v-if="historyId" class="result-actions">
+            <button class="history-pill" type="button">
+              历史任务 ID：{{ historyId }}
+            </button>
+            <button
+              class="review-btn"
+              type="button"
+              @click="$router.push(`/review?task_id=${historyId}`)"
+            >
+              去复核缺陷
+            </button>
+          </div>
         </div>
 
         <div v-if="loadingHistory" class="empty-result">
@@ -119,8 +180,8 @@
         />
 
         <div v-else class="empty-result">
-          <strong>未检测到明显 PCB 缺陷。</strong>
-          <p>请在左侧上传图片并点击“开始检测”。</p>
+          <strong>尚未开始检测。</strong>
+          <p>请选择检测模式，上传文件后点击“开始检测”。</p>
         </div>
       </section>
     </div>
@@ -133,7 +194,12 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import DetectionResultCard from '@/components/DetectionResultCard.vue'
-import { detectSingleImage } from '@/api/detection'
+import {
+  detectSingleImage,
+  detectBatchImages,
+  detectZipImages,
+  detectVideo,
+} from '@/api/detection'
 import {
   createDetectionTaskHistory,
   getDetectionTaskDetail,
@@ -146,10 +212,20 @@ import {
 
 const route = useRoute()
 
-const selectedFile = ref(null)
+const modeOptions = [
+  { value: 'single', label: '单图' },
+  { value: 'batch', label: '批量' },
+  { value: 'zip', label: 'ZIP' },
+  { value: 'video', label: '视频' },
+]
+
+const detectMode = ref('single')
+const selectedFiles = ref([])
 const previewUrl = ref('')
 const conf = ref(0.25)
 const iou = ref(0.45)
+const frameSampleRate = ref(5)
+const maxFrames = ref(50)
 
 const modelVersion = ref('pcb_aoi_v1.0.0')
 const modelOptions = ref([])
@@ -162,9 +238,58 @@ const historyLoaded = ref(false)
 const historyId = ref(null)
 const resultPayload = ref(null)
 
+const videoSuffixes = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
+
+const acceptTypes = computed(() => {
+  if (detectMode.value === 'batch' || detectMode.value === 'single') {
+    return 'image/*'
+  }
+
+  if (detectMode.value === 'zip') {
+    return '.zip,application/zip'
+  }
+
+  return 'video/*,.mp4,.avi,.mov,.mkv,.wmv,.flv'
+})
+
+const canDetect = computed(() => selectedFiles.value.length > 0)
+
+const emptyTitle = computed(() => {
+  const map = {
+    single: '选择一张 PCB 图片',
+    batch: '选择多张 PCB 图片',
+    zip: '选择 ZIP 压缩包',
+    video: '选择一段 PCB 视频',
+  }
+
+  return map[detectMode.value]
+})
+
+const emptyHint = computed(() => {
+  const map = {
+    single: '支持 jpg、png、jpeg 等常见格式。',
+    batch: '一次可上传多张图片进行批量检测。',
+    zip: '压缩包内需包含图片文件。',
+    video: '支持 mp4、avi、mov 等常见视频格式。',
+  }
+
+  return map[detectMode.value]
+})
+
+const uploadTitle = computed(() => {
+  const map = {
+    single: '已选择图片',
+    batch: '已选择批量图片',
+    zip: '已选择 ZIP 文件',
+    video: '已选择视频',
+  }
+
+  return map[detectMode.value]
+})
+
 const resultMode = computed(() => {
   if (!resultPayload.value) {
-    return 'single'
+    return detectMode.value
   }
 
   if (resultPayload.value.type === 'video' || resultPayload.value.key_frames) {
@@ -181,6 +306,62 @@ const resultMode = computed(() => {
 
   return 'single'
 })
+
+function clearPreview() {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = ''
+  }
+}
+
+function resetSelection() {
+  selectedFiles.value = []
+  clearPreview()
+  resultPayload.value = null
+  historyLoaded.value = false
+  historyId.value = null
+}
+
+function switchMode(mode) {
+  if (detectMode.value === mode) {
+    return
+  }
+
+  detectMode.value = mode
+  resetSelection()
+}
+
+function isVideoFile(file) {
+  const name = (file?.name || '').toLowerCase()
+  return videoSuffixes.some(suffix => name.endsWith(suffix))
+}
+
+function handleFileChange(event) {
+  const files = Array.from(event.target.files || [])
+
+  if (files.length === 0) {
+    return
+  }
+
+  if (detectMode.value === 'single') {
+    selectedFiles.value = [files[0]]
+    clearPreview()
+    previewUrl.value = URL.createObjectURL(files[0])
+  } else if (detectMode.value === 'batch') {
+    selectedFiles.value = files.filter(file => file.type.startsWith('image/'))
+  } else if (detectMode.value === 'zip') {
+    const zipFile = files.find(file => file.name.toLowerCase().endsWith('.zip'))
+    selectedFiles.value = zipFile ? [zipFile] : []
+  } else {
+    const videoFile = files.find(file => isVideoFile(file) || file.type.startsWith('video/'))
+    selectedFiles.value = videoFile ? [videoFile] : []
+  }
+
+  resultPayload.value = null
+  historyLoaded.value = false
+  historyId.value = null
+  event.target.value = ''
+}
 
 async function loadModelOptions() {
   modelLoading.value = true
@@ -251,28 +432,6 @@ async function handleModelVersionChange() {
   }
 }
 
-function handleFileChange(event) {
-  const file = event.target.files?.[0]
-
-  if (!file) {
-    return
-  }
-
-  selectedFile.value = file
-
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value)
-  }
-
-  previewUrl.value = URL.createObjectURL(file)
-
-  resultPayload.value = null
-  historyLoaded.value = false
-  historyId.value = null
-
-  event.target.value = ''
-}
-
 function getResultCount(result) {
   if (!result) {
     return 0
@@ -304,21 +463,52 @@ function buildSummary(result) {
   return `检测到 ${total} 个疑似缺陷。${statsText}`
 }
 
+function buildHistoryTitle() {
+  if (detectMode.value === 'batch') {
+    return `批量检测（${selectedFiles.value.length} 张）`
+  }
+
+  return selectedFiles.value[0]?.name || '检测任务'
+}
+
+async function runDetectionRequest() {
+  const formData = new FormData()
+  formData.append('conf', String(conf.value))
+  formData.append('iou', String(iou.value))
+  formData.append('device', 'cpu')
+
+  if (detectMode.value === 'single') {
+    formData.append('file', selectedFiles.value[0])
+    return detectSingleImage(formData)
+  }
+
+  if (detectMode.value === 'batch') {
+    selectedFiles.value.forEach(file => {
+      formData.append('files', file)
+    })
+    return detectBatchImages(formData)
+  }
+
+  if (detectMode.value === 'zip') {
+    formData.append('file', selectedFiles.value[0])
+    return detectZipImages(formData)
+  }
+
+  formData.append('file', selectedFiles.value[0])
+  formData.append('frame_sample_rate', String(frameSampleRate.value))
+  formData.append('max_frames', String(maxFrames.value))
+  return detectVideo(formData)
+}
+
 async function handleDetect() {
-  if (!selectedFile.value || detecting.value) {
+  if (!canDetect.value || detecting.value) {
     return
   }
 
   detecting.value = true
 
   try {
-    const formData = new FormData()
-    formData.append('file', selectedFile.value)
-    formData.append('conf', String(conf.value))
-    formData.append('iou', String(iou.value))
-    formData.append('device', 'cpu')
-
-    const res = await detectSingleImage(formData)
+    const res = await runDetectionRequest()
     const payload = res?.data || res || {}
     const result = payload.data || payload
 
@@ -326,8 +516,8 @@ async function handleDetect() {
     historyLoaded.value = false
 
     const historyRes = await createDetectionTaskHistory({
-      title: selectedFile.value.name,
-      image_name: selectedFile.value.name,
+      title: buildHistoryTitle(),
+      image_name: selectedFiles.value[0]?.name || null,
       model_version: modelVersion.value,
       status: 'completed',
       result_count: getResultCount(result),
@@ -335,6 +525,7 @@ async function handleDetect() {
       result_payload: {
         ...result,
         model_version: modelVersion.value,
+        detect_mode: detectMode.value,
       },
     })
 
@@ -362,12 +553,8 @@ async function loadHistoryDetection(taskId) {
   loadingHistory.value = true
   historyLoaded.value = false
   historyId.value = taskId
-  selectedFile.value = null
-
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value)
-    previewUrl.value = ''
-  }
+  selectedFiles.value = []
+  clearPreview()
 
   try {
     const res = await getDetectionTaskDetail(taskId)
@@ -376,6 +563,10 @@ async function loadHistoryDetection(taskId) {
 
     resultPayload.value = raw.result_payload || null
     historyLoaded.value = true
+
+    if (raw.result_payload?.detect_mode) {
+      detectMode.value = raw.result_payload.detect_mode
+    }
 
     if (!resultPayload.value) {
       console.warn('该历史记录没有 result_payload，无法恢复完整检测结果')
@@ -411,7 +602,6 @@ onMounted(() => {
 <style scoped>
 .detection-page {
   width: 100%;
-  padding-top: 0;
 }
 
 .page-grid {
@@ -489,6 +679,35 @@ onMounted(() => {
   color: #111827;
 }
 
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.mode-tab {
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #374151;
+  padding: 0 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.mode-tab.active {
+  background: #111827;
+  border-color: #111827;
+  color: #ffffff;
+}
+
+.mode-tab:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .upload-box {
   height: 280px;
   border: 1px dashed #d1d5db;
@@ -543,6 +762,11 @@ onMounted(() => {
   color: #374151;
   font-size: 13px;
   word-break: break-all;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 96px;
+  overflow: auto;
 }
 
 .control-row {
@@ -586,7 +810,32 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
+.result-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
 
+.history-pill,
+.review-btn {
+  border: none;
+  border-radius: 999px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.history-pill {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.review-btn {
+  background: #111827;
+  color: #ffffff;
+}
 
 .empty-result {
   border: 1px solid #e5e7eb;
@@ -620,14 +869,9 @@ onMounted(() => {
     flex-direction: column;
   }
 
-  .model-select-wrap,
-  .model-select {
-    width: 100%;
-  }
-
   .detect-btn {
-    margin-left: 0;
     width: 100%;
+    margin-left: 0;
   }
 }
 </style>

@@ -9,7 +9,10 @@ import cv2
 from ultralytics import YOLO
 
 from app.config.settings import settings
+from app.core.logger import get_logger
 
+
+logger = get_logger(__name__)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -31,6 +34,23 @@ class DetectionService:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         ZIP_EXTRACT_DIR.mkdir(parents=True, exist_ok=True)
         VIDEO_FRAME_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _upload_to_minio(self, local_path: Path, object_name: str) -> dict[str, str]:
+        """
+        Best-effort upload. Detection should still succeed if MinIO is down.
+        """
+        try:
+            from app.storage.minio_client import get_minio_client
+
+            client = get_minio_client()
+            url = client.upload_file(object_name, str(local_path))
+            return {
+                "object_name": object_name,
+                "url": url,
+            }
+        except Exception as exc:
+            logger.warning("MinIO upload skipped for %s: %s", object_name, exc)
+            return {}
 
     def _find_model_path(self) -> str:
         """
@@ -200,6 +220,12 @@ class DetectionService:
 
         cv2.imwrite(str(annotated_path), annotated_image)
 
+        original_object = f"detection/{run_id}/original/{image_path.name}"
+        annotated_object = f"detection/{run_id}/annotated/{annotated_filename}"
+
+        original_storage = self._upload_to_minio(image_path, original_object)
+        annotated_storage = self._upload_to_minio(annotated_path, annotated_object)
+
         return {
             "type": "single",
             "image_name": image_path.name,
@@ -211,6 +237,10 @@ class DetectionService:
             "total_objects": len(detections),
             "conf": conf,
             "iou": iou,
+            "storage": {
+                "original": original_storage,
+                "annotated": annotated_storage,
+            },
         }
 
     def detect_batch(
@@ -397,10 +427,17 @@ class DetectionService:
                 frame_path = output_subdir / frame_filename
                 cv2.imwrite(str(frame_path), annotated_image)
 
+                frame_storage = self._upload_to_minio(
+                    frame_path,
+                    f"detection/video_{run_id}/frames/{frame_filename}",
+                )
+
                 key_frames.append({
                     "frame_index": frame_index,
                     "timestamp": round(frame_index / fps, 2) if fps > 0 else 0,
                     "annotated_image_base64": self._image_to_base64(frame_path),
+                    "annotated_image_path": str(frame_path),
+                    "storage": frame_storage,
                     "detections": detections,
                     "class_stats": class_stats,
                     "object_count": len(detections),

@@ -21,15 +21,20 @@ import uuid
 from pathlib import Path
 
 import cv2
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from ultralytics import YOLO
 
+from app.api.deps import require_developer
 from app.training.training_service import BACKEND_ROOT, training_service
 
 
-router = APIRouter(prefix="/api/training", tags=["模型训练"])
+router = APIRouter(
+    prefix="/api/training",
+    tags=["模型训练"],
+    dependencies=[Depends(require_developer)],
+)
 
 
 class TrainingStartRequest(BaseModel):

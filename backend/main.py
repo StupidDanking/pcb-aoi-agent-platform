@@ -14,6 +14,7 @@ from app.api.training import router as training_router
 from app.api.detection import router as detection_router
 from app.api.chat import router as chat_router
 from app.api.models import router as models_router
+from app.api.review import router as review_router
 
 from app.config.settings import settings
 from app.core.exceptions import register_exception_handlers
@@ -58,6 +59,19 @@ app.include_router(history_router)
 app.include_router(detection_router)
 app.include_router(chat_router)
 app.include_router(models_router)
+app.include_router(review_router)
+
+
+@app.on_event("startup")
+def startup_services():
+    try:
+        from app.storage.minio_client import init_minio
+
+        init_minio()
+        logger.info("MinIO initialized")
+    except Exception as exc:
+        logger.warning("MinIO init skipped: %s", exc)
+
 
 @app.get("/", summary="根路径")
 def root():

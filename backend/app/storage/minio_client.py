@@ -112,8 +112,26 @@ class MinIOClient:
             return False
 
 
-# 全局单例，其他模块可以直接 import 使用
-minio_client = MinIOClient()
+_minio_client: MinIOClient | None = None
+
+
+def get_minio_client() -> MinIOClient:
+    """Lazy singleton — avoid connecting at import time."""
+    global _minio_client
+
+    if _minio_client is None:
+        _minio_client = MinIOClient()
+
+    return _minio_client
+
+
+# Backward-compatible alias used by health checks / older imports.
+class _MinioProxy:
+    def __getattr__(self, item):
+        return getattr(get_minio_client(), item)
+
+
+minio_client = _MinioProxy()
 
 
 def init_minio():
@@ -123,4 +141,4 @@ def init_minio():
     后续 main.py 启动时可以调用它，
     确保 bucket 已经存在。
     """
-    return minio_client
+    return get_minio_client()

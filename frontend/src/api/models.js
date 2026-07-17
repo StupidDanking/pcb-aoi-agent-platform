@@ -25,6 +25,31 @@ export function setActiveModel(version) {
   })
 }
 
-export function getModelArtifactUrl(version, filename) {
-  return `${API_BASE_URL}/api/models/${version}/artifact/${filename}?v=${version}&t=${Date.now()}`
+export function getModelArtifactUrl(version, filename, cacheKey) {
+  const bust = cacheKey || Date.now()
+  return `${API_BASE_URL}/api/models/${version}/artifact/${filename}?v=${version}&t=${bust}`
+}
+
+/**
+ * Fetch artifact with Authorization header.
+ * Plain <img src> cannot send Bearer token, so charts broke after models API required login.
+ */
+export async function fetchModelArtifactObjectUrl(version, filename, cacheKey) {
+  const token = localStorage.getItem('access_token')
+  const url = getModelArtifactUrl(version, filename, cacheKey)
+
+  const response = await fetch(url, {
+    headers: token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {},
+  })
+
+  if (!response.ok) {
+    throw new Error(`artifact ${filename} failed: ${response.status}`)
+  }
+
+  const blob = await response.blob()
+  return URL.createObjectURL(blob)
 }

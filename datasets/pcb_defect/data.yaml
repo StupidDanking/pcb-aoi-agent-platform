@@ -1,4 +1,5 @@
-﻿path: D:/shixi/rsod-agent-platform/datasets/pcb_defect
+# Relative to this file's directory. Works on any machine after clone.
+path: .
 train: train/images
 val: val/images
 test: test/images

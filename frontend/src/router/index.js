@@ -7,6 +7,7 @@ import RegisterPage from '@/views/RegisterPage.vue'
 import AppShell from '@/layout/AppShell.vue'
 import ChatPage from '@/views/ChatPage.vue'
 import DetectionPage from '@/views/DetectionPage.vue'
+import ReviewPage from '@/views/ReviewPage.vue'
 import TrainingPage from '@/views/TrainingPage.vue'
 import ModelsPage from '@/views/ModelsPage.vue'
 
@@ -55,6 +56,14 @@ const routes = [
         path: 'detection',
         name: 'Detection',
         component: DetectionPage,
+        meta: {
+          roles: ['user', 'developer', 'admin'],
+        },
+      },
+      {
+        path: 'review',
+        name: 'Review',
+        component: ReviewPage,
         meta: {
           roles: ['user', 'developer', 'admin'],
         },

@@ -142,11 +142,15 @@
 
               <div class="artifact-image-wrap">
                 <img
-                  :src="artifactUrl(chart.filename)"
+                  v-if="artifactUrls[chart.filename]"
+                  :src="artifactUrls[chart.filename]"
                   :alt="chart.title"
                   class="artifact-img"
                   @click="openPreview(chart)"
                 />
+                <div v-else class="artifact-missing">
+                  {{ artifactsLoading ? '图表加载中...' : '图表加载失败或文件不存在' }}
+                </div>
               </div>
             </div>
           </div>
@@ -172,20 +176,21 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   getModelVersions,
   getActiveModel,
   setActiveModel,
-  getModelArtifactUrl
+  fetchModelArtifactObjectUrl
 } from '@/api/models'
 
 const loading = ref(false)
 const switching = ref(false)
+const artifactsLoading = ref(false)
 const models = ref([])
 const selectedModel = ref(null)
 const activeModelName = ref('')
-const artifactCacheKey = ref(Date.now())
+const artifactUrls = ref({})
 
 const previewVisible = ref(false)
 const previewTitle = ref('')
@@ -296,7 +301,7 @@ const loadModels = async () => {
       selectedModel.value = latest || models.value[0] || null
     }
 
-    artifactCacheKey.value = Date.now()
+    await loadArtifacts(selectedModel.value)
   } catch (error) {
     console.error('加载模型列表失败:', error)
   } finally {
@@ -306,7 +311,7 @@ const loadModels = async () => {
 
 const selectModel = (model) => {
   selectedModel.value = model
-  artifactCacheKey.value = Date.now()
+  loadArtifacts(model)
 }
 
 const isActiveModel = (model) => {
@@ -339,23 +344,61 @@ const formatPercent = (value) => {
   return `${percent.toFixed(2)}%`
 }
 
-const artifactUrl = (filename) => {
-  if (!selectedModel.value?.name) return ''
-  return getModelArtifactUrl(
-    selectedModel.value.name,
-    filename,
-    artifactCacheKey.value
-  )
+function revokeArtifactUrls() {
+  Object.values(artifactUrls.value).forEach((url) => {
+    if (url) {
+      URL.revokeObjectURL(url)
+    }
+  })
+  artifactUrls.value = {}
+}
+
+async function loadArtifacts(model) {
+  revokeArtifactUrls()
+
+  if (!model?.name) {
+    return
+  }
+
+  artifactsLoading.value = true
+  const nextUrls = {}
+
+  try {
+    await Promise.all(
+      charts.map(async (item) => {
+        try {
+          nextUrls[item.filename] = await fetchModelArtifactObjectUrl(
+            model.name,
+            item.filename
+          )
+        } catch (error) {
+          console.warn(`加载图表失败: ${item.filename}`, error)
+          nextUrls[item.filename] = ''
+        }
+      })
+    )
+
+    artifactUrls.value = nextUrls
+  } finally {
+    artifactsLoading.value = false
+  }
 }
 
 const openPreview = (chart) => {
+  const url = artifactUrls.value[chart.filename]
+  if (!url) return
+
   previewTitle.value = chart.title
-  previewImage.value = artifactUrl(chart.filename)
+  previewImage.value = url
   previewVisible.value = true
 }
 
 onMounted(() => {
   loadModels()
+})
+
+onBeforeUnmount(() => {
+  revokeArtifactUrls()
 })
 </script>
 
@@ -671,6 +714,13 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 800;
   color: #0f172a;
+}
+
+.artifact-missing {
+  padding: 24px;
+  color: #64748b;
+  font-size: 14px;
+  text-align: center;
 }
 
 .artifact-image-wrap {

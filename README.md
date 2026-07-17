@@ -192,10 +192,23 @@ MinIO
 快速启动
 1. 克隆项目
 git clone <your-repository-url>
-cd rsod-agent-platform
+cd pcb-aoi-agent-platform
 2. 启动基础服务
 docker compose up -d postgres redis minio
-3. 配置后端环境变量
+3. 下载模型权重与示例数据集（首次）
+
+```bash
+python scripts/download_models.py
+python scripts/prepare_sample_dataset.py
+python scripts/check_yolo_dataset.py
+```
+
+说明：
+- `download_models.py` 会检查/下载 `backend/models/*/best.pt`
+- `prepare_sample_dataset.py` 会生成小型 YOLO 示例集到 `datasets/pcb_defect/`
+- `data.yaml` 已使用相对路径 `path: .`，不依赖本机绝对路径
+
+4. 配置后端环境变量
 
 复制环境变量模板：
 
@@ -236,10 +249,10 @@ ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:808
 
 注意：.env 文件包含 API Key 和数据库密码，不应提交到 Git 仓库。
 
-4. 安装后端依赖
+5. 安装后端依赖
 cd backend
 pip install -r requirements.txt
-5. 初始化数据库
+6. 初始化数据库
 alembic upgrade head
 
 如需初始化测试账号：
@@ -255,7 +268,7 @@ zhouyuhan	123456	developer
 lixiang	123456	developer
 deming	123456	developer
 
-6. 启动后端
+7. 启动后端
 python main.py
 
 后端默认运行在：
@@ -265,13 +278,13 @@ http://localhost:8000
 API 文档地址：
 
 http://localhost:8000/docs
-7. 安装前端依赖
+8. 安装前端依赖
 
 新开一个终端：
 
 cd frontend
 npm install
-8. 启动前端
+9. 启动前端
 npm run dev
 
 前端默认运行在：
@@ -332,7 +345,7 @@ datasets/pcb_defect
 
 data.yaml 示例：
 
-path: D:/shixi/rsod-agent-platform/datasets/pcb_defect
+path: .
 train: train/images
 val: val/images
 test: test/images
@@ -382,12 +395,22 @@ GET  /api/models/{version}/artifact/{filename}
 前端页面
 页面	路由	功能
 智能问答	/chat	上传图片、视频、ZIP 并进行检测分析和大模型问答
-图片检测	/detection	单图检测、模型选择、检测结果展示
+图片检测	/detection	单图 / 批量 / ZIP / 视频检测、模型选择、结果展示与历史保存
+缺陷复核	/review	确认缺陷 / 标记误检、填写备注并关联检测任务
 模型训练	/training	启动训练、查看训练状态和指标
 模型管理	/models	查看模型版本、切换当前检测模型
 登录	/login	用户登录
 注册	/register	用户注册
 协作开发说明
+权限说明
+
+后端接口权限规则：
+
+- `/api/training/*`：需要登录，且角色为 `developer` 或 `admin`
+- `/api/models/*`：需要登录（切换当前模型允许普通用户，便于检测页使用）
+- `/api/detection/*`、`/api/chat/*`、`/api/history/*`：需要登录
+
+前端路由仍会按角色隐藏“模型训练 / 模型管理”菜单。
 前端开发
 
 如果只进行前端页面开发：

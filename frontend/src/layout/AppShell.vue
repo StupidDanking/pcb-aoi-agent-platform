@@ -153,6 +153,13 @@ const allNavItems = [
     roles: ['user', 'developer', 'admin'],
   },
   {
+    title: '缺陷复核',
+    path: '/review',
+    icon: '✓',
+    type: 'normal',
+    roles: ['user', 'developer', 'admin'],
+  },
+  {
     title: '模型训练与评估',
     path: '/training',
     icon: '◈',
