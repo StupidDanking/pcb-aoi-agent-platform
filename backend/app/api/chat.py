@@ -2,10 +2,10 @@ import json
 import shutil
 import uuid
 from pathlib import Path
-from typing import Optional, List
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+from starlette.datastructures import UploadFile
 
 from app.agent.detection_agent import detection_agent
 from app.api.auth import get_current_user
@@ -45,13 +45,33 @@ def format_sse_event(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def extract_upload_files(form) -> list[UploadFile]:
+    """
+    Read multipart `files` safely for 0/1/N uploads.
+
+    Do not use FastAPI's UploadFile for isinstance checks: request.form()
+    returns starlette.datastructures.UploadFile instances.
+    """
+    uploads: list[UploadFile] = []
+
+    for key, value in form.multi_items():
+        if key != "files":
+            continue
+
+        filename = getattr(value, "filename", None)
+        file_obj = getattr(value, "file", None)
+
+        if not filename or not str(filename).strip() or file_obj is None:
+            continue
+
+        uploads.append(value)
+
+    return uploads
+
+
 @router.post("/stream")
 async def chat_stream(
-    message: str = Form(""),
-    files: Optional[List[UploadFile]] = File(None),
-    conf: float = Form(0.25),
-    iou: float = Form(0.45),
-    device: str = Form(default=settings.DEFAULT_DETECT_DEVICE),
+    request: Request,
     current_user=Depends(get_current_user),
 ):
     """
@@ -66,12 +86,19 @@ async def chat_stream(
     前端使用 fetch + ReadableStream 读取。
     """
 
+    form = await request.form()
+    message = str(form.get("message") or "")
+    conf = float(form.get("conf") or 0.25)
+    iou = float(form.get("iou") or 0.45)
+    device = str(form.get("device") or settings.DEFAULT_DETECT_DEVICE)
+
+    files = extract_upload_files(form)
+
     saved_paths = []
 
-    if files:
-        for file in files:
-            saved_path = save_upload_file(file)
-            saved_paths.append(str(saved_path))
+    for file in files:
+        saved_path = save_upload_file(file)
+        saved_paths.append(str(saved_path))
 
     async def event_generator():
         async for event in detection_agent.chat_stream(

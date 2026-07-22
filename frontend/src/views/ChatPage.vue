@@ -43,6 +43,15 @@
               :result="message.detectionResult"
               :mode="message.detectMode"
             />
+
+            <div v-if="message.historyId" class="review-actions">
+              <button
+                class="review-btn"
+                @click="router.push(`/review?task_id=${message.historyId}`)"
+              >
+                去复核缺陷
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -136,13 +145,14 @@
 
 <script setup>
 import { nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import DetectionResultCard from '@/components/DetectionResultCard.vue'
 import { streamChat } from '@/api/chat'
 import {
   createChatMessage,
+  createDetectionTaskHistory,
   getChatSessionDetail,
 } from '@/api/history'
 import {
@@ -152,6 +162,7 @@ import {
 } from '@/api/models'
 
 const route = useRoute()
+const router = useRouter()
 
 const inputText = ref('')
 const selectedFiles = ref([])
@@ -357,6 +368,62 @@ function formatToolName(toolName) {
   return map[toolName] || toolName
 }
 
+function getResultCount(result) {
+  if (!result) {
+    return 0
+  }
+
+  if (result.total_objects !== undefined) {
+    return result.total_objects
+  }
+
+  if (Array.isArray(result.detections)) {
+    return result.detections.length
+  }
+
+  return 0
+}
+
+function buildDetectionSummary(result) {
+  const total = result?.total_objects || 0
+  const stats = result?.class_stats || []
+
+  if (total === 0) {
+    return '未检测到明显 PCB 缺陷。'
+  }
+
+  const statsText = stats
+    .map(item => `${item.class_name} × ${item.count}`)
+    .join('，')
+
+  return `检测到 ${total} 个疑似缺陷。${statsText}`
+}
+
+async function saveDetectionHistoryForReview(result, detectMode, fileNames = []) {
+  if (!result) {
+    return null
+  }
+
+  const historyRes = await createDetectionTaskHistory({
+    title: fileNames[0]?.name || `问答检测（${detectMode || 'single'}）`,
+    image_name: fileNames[0]?.name || null,
+    model_version: modelVersion.value,
+    status: 'completed',
+    result_count: getResultCount(result),
+    summary: buildDetectionSummary(result),
+    result_payload: {
+      ...result,
+      model_version: modelVersion.value,
+      detect_mode: detectMode,
+      source: 'chat',
+    },
+  })
+
+  const historyPayload = historyRes?.data || historyRes || {}
+  const raw = historyPayload.data || historyPayload
+  return raw.task_id || raw.id || null
+}
+
 async function saveUserMessage(content, title) {
   try {
     const res = await createChatMessage({
@@ -444,6 +511,7 @@ async function handleSend() {
     toolName: '',
     detectionResult: null,
     detectMode: 'single',
+    historyId: null,
   }
 
   messages.value.push(userMessage)
@@ -524,6 +592,22 @@ async function handleSend() {
         ? latestTool
         : ''
 
+    let detectionHistoryId = null
+
+    if (latestResult && savedToolName) {
+      try {
+        detectionHistoryId = await saveDetectionHistoryForReview(
+          latestResult,
+          assistantMessage.detectMode,
+          fileNames,
+        )
+        assistantMessage.historyId = detectionHistoryId
+      } catch (error) {
+        console.error('保存检测复核任务失败:', error)
+        ElMessage.warning('检测完成，但写入复核列表失败')
+      }
+    }
+
     await saveAssistantMessage(
       finalText || assistantMessage.content || '处理完成',
       title,
@@ -534,6 +618,8 @@ async function handleSend() {
           ? {
               ...latestResult,
               model_version: modelVersion.value,
+              detect_mode: assistantMessage.detectMode,
+              history_id: detectionHistoryId,
             }
           : null,
       },
@@ -573,6 +659,7 @@ async function loadSession(sessionId) {
       toolName: item.tool_name || '',
       detectionResult: item.result_payload || null,
       detectMode: item.detect_mode || inferDetectMode(item.tool_name, item.result_payload),
+      historyId: item.result_payload?.history_id || null,
     }))
 
     await scrollToBottom()
@@ -730,6 +817,25 @@ onMounted(() => {
   border: 1px solid #bfdbfe;
   border-radius: 999px;
   padding: 6px 12px;
+}
+
+.review-actions {
+  margin-top: 12px;
+}
+
+.review-btn {
+  border: 1px solid #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.review-btn:hover {
+  background: #0d9488;
 }
 
 .attached-files {
